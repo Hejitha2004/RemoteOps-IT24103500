@@ -7,6 +7,8 @@
 
 #define PORT 9410
 #define BUFFER_SIZE 1024
+#define AUTH_TOKEN "OPS-3500"
+#define SID "0053"
 
 int main(void)
 {
@@ -14,6 +16,7 @@ int main(void)
     struct sockaddr_in server_addr, client_addr;
     socklen_t client_len = sizeof(client_addr);
     char buffer[BUFFER_SIZE];
+    int authenticated = 0;
 
     /* Create TCP socket */
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -24,6 +27,11 @@ int main(void)
         return 1;
     }
 
+    /* Allow quick reuse of the port */
+    int option = 1;
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR,
+               &option, sizeof(option));
+
     /* Configure server address */
     memset(&server_addr, 0, sizeof(server_addr));
 
@@ -31,7 +39,7 @@ int main(void)
     server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(PORT);
 
-    /* Bind socket to port 9410 */
+    /* Bind to port 9410 */
     if (bind(server_fd,
              (struct sockaddr *)&server_addr,
              sizeof(server_addr)) < 0)
@@ -41,7 +49,7 @@ int main(void)
         return 1;
     }
 
-    /* Start listening */
+    /* Listen for Controllers */
     if (listen(server_fd, 5) < 0)
     {
         perror("listen");
@@ -52,7 +60,7 @@ int main(void)
     printf("RemoteOps Agent started.\n");
     printf("Listening on TCP port %d...\n", PORT);
 
-    /* Accept one Controller connection */
+    /* Accept one Controller */
     client_fd = accept(server_fd,
                        (struct sockaddr *)&client_addr,
                        &client_len);
@@ -66,7 +74,7 @@ int main(void)
 
     printf("Controller connected.\n");
 
-    /* Receive a message */
+    /* Receive authentication command */
     memset(buffer, 0, sizeof(buffer));
 
     int bytes_received = recv(client_fd,
@@ -74,19 +82,51 @@ int main(void)
                               sizeof(buffer) - 1,
                               0);
 
-    if (bytes_received > 0)
+    if (bytes_received <= 0)
     {
-        buffer[bytes_received] = '\0';
+        printf("Controller disconnected.\n");
+        close(client_fd);
+        close(server_fd);
+        return 0;
+    }
 
-        printf("Received: %s\n", buffer);
+    buffer[bytes_received] = '\0';
 
-        /* Send a simple response */
-        const char *response = "OK Agent is running\n";
+    /* Remove newline */
+    buffer[strcspn(buffer, "\r\n")] = '\0';
 
-        send(client_fd,
-             response,
-             strlen(response),
-             0);
+    printf("Received: %s\n", buffer);
+
+    /* Check AUTH command */
+    if (strcmp(buffer, "AUTH " AUTH_TOKEN) == 0)
+    {
+        authenticated = 1;
+
+        char response[BUFFER_SIZE];
+
+        snprintf(response, sizeof(response),
+                 "OK AUTHENTICATED SID:%s\n", SID);
+
+        send(client_fd, response, strlen(response), 0);
+
+        printf("Authentication successful.\n");
+    }
+    else
+    {
+        char response[BUFFER_SIZE];
+
+        snprintf(response, sizeof(response),
+                 "ERR 001 AUTH_FAILED SID:%s\n", SID);
+
+        send(client_fd, response, strlen(response), 0);
+
+        printf("Authentication failed.\n");
+    }
+
+    /* Keep authenticated variable for the next stages */
+    if (authenticated)
+    {
+        printf("Controller is authenticated.\n");
     }
 
     close(client_fd);

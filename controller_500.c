@@ -30,7 +30,8 @@ int main(void)
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(PORT);
 
-    if (inet_pton(AF_INET, SERVER_IP, &server_addr.sin_addr) <= 0)
+    if (inet_pton(AF_INET, SERVER_IP,
+                  &server_addr.sin_addr) <= 0)
     {
         perror("inet_pton");
         close(sockfd);
@@ -49,12 +50,17 @@ int main(void)
 
     printf("Connected to RemoteOps Agent.\n");
 
-    /* Send test message */
-    const char *message = "HELLO\n";
+    /* Send authentication command */
+    const char *auth_command = "AUTH OPS-3500\n";
 
-    send(sockfd, message, strlen(message), 0);
+    send(sockfd,
+         auth_command,
+         strlen(auth_command),
+         0);
 
-    /* Receive response */
+    printf("Sent: %s", auth_command);
+
+    /* Receive authentication response */
     memset(buffer, 0, sizeof(buffer));
 
     int bytes_received = recv(sockfd,
@@ -65,11 +71,15 @@ int main(void)
     if (bytes_received > 0)
     {
         buffer[bytes_received] = '\0';
+
         printf("Agent response: %s", buffer);
+    }
+    else
+    {
+        printf("No response from Agent.\n");
     }
 
     close(sockfd);
 
     return 0;
 }
-
