@@ -80,11 +80,11 @@ int main(void)
     }
     
 /* Send a command after authentication */
-const char *command = "SYSINFO\n";
+const char *command = "LISTPROC\n";
 
 send(sockfd, command, strlen(command), 0);
 
-printf("Sent command: SYSINFO\n");
+printf("Sent command: LISTPROC\n");
 
 /* Receive Agent response */
 memset(buffer, 0, sizeof(buffer));

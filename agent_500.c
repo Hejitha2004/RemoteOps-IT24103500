@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 #include <sys/sysinfo.h>
 #include <sys/statvfs.h>
+#include <dirent.h>
 
 #define PORT 9410
 #define BUFFER_SIZE 1024
@@ -189,6 +190,119 @@ if (authenticated)
         buffer[strcspn(buffer, "\r\n")] = '\0';
 
         printf("Received command: %s\n", buffer);
+/*if (strcmp(buffer, "LISTPROC") == 0)
+{
+    DIR *proc_dir;
+    struct dirent *entry;
+    char response[BUFFER_SIZE];
+
+    proc_dir = opendir("/proc");
+
+    if (proc_dir == NULL)
+    {
+        snprintf(response, sizeof(response),
+                 "ERR 004 LISTPROC_FAILED SID:%s\n",
+                 SID);
+
+        send(client_fd, response, strlen(response), 0);
+        continue;
+    }
+
+    snprintf(response, sizeof(response),
+             "LISTPROC SID:%s\n",
+             SID);
+
+    send(client_fd, response, strlen(response), 0);
+
+    while ((entry = readdir(proc_dir)) != NULL)
+    {
+        int is_process = 1;
+
+        for (int i = 0; entry->d_name[i] != '\0'; i++)
+        {
+            if (entry->d_name[i] < '0' ||
+                entry->d_name[i] > '9')
+            {
+                is_process = 0;
+                break;
+            }
+        }
+
+        if (is_process)
+        {
+            snprintf(response, sizeof(response),
+                     "PID %s\n",
+                     entry->d_name);
+
+            send(client_fd, response, strlen(response), 0);
+        }
+    }
+
+    closedir(proc_dir);
+    continue;
+}*/
+if (strcmp(buffer, "LISTPROC") == 0)
+{
+    DIR *proc_dir;
+    struct dirent *entry;
+
+    char response[BUFFER_SIZE];
+    int offset = 0;
+
+    proc_dir = opendir("/proc");
+
+    if (proc_dir == NULL)
+    {
+        snprintf(response, sizeof(response),
+                 "ERR 004 LISTPROC_FAILED SID:%s\n",
+                 SID);
+
+        send(client_fd, response, strlen(response), 0);
+        continue;
+    }
+
+    offset += snprintf(response + offset,
+                       sizeof(response) - offset,
+                       "LISTPROC");
+
+    while ((entry = readdir(proc_dir)) != NULL)
+    {
+        int is_process = 1;
+
+        for (int i = 0; entry->d_name[i] != '\0'; i++)
+        {
+            if (entry->d_name[i] < '0' ||
+                entry->d_name[i] > '9')
+            {
+                is_process = 0;
+                break;
+            }
+        }
+
+        if (is_process)
+        {
+            if ((size_t)offset < sizeof(response) - 20)
+            {
+                offset += snprintf(response + offset,
+                                   sizeof(response) - offset,
+                                   " %s",
+                                   entry->d_name);
+            }
+        }
+    }
+
+    closedir(proc_dir);
+
+    snprintf(response + offset,
+             sizeof(response) - offset,
+             " SID:%s\n",
+             SID);
+
+    send(client_fd, response, strlen(response), 0);
+
+    continue;
+}
+
 if (strcmp(buffer, "SYSINFO") == 0)
 {
     struct sysinfo info;
