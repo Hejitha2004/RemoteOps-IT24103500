@@ -78,8 +78,26 @@ int main(void)
     {
         printf("No response from Agent.\n");
     }
+    
+/* Send a command after authentication */
+const char *command = "SYSINFO\n";
 
-    close(sockfd);
+send(sockfd, command, strlen(command), 0);
+
+printf("Sent command: SYSINFO\n");
+
+/* Receive Agent response */
+memset(buffer, 0, sizeof(buffer));
+
+int command_response = recv(sockfd, buffer, sizeof(buffer) - 1, 0);
+
+if (command_response > 0)
+{
+    buffer[command_response] = '\0';
+    printf("Agent command response: %s", buffer);
+}
+
+close(sockfd);
 
     return 0;
 }

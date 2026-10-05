@@ -67,7 +67,12 @@ int main(void)
 
     if (client_fd < 0)
     {
-        perror("accept");
+         if (listen(server_fd, 5) < 0)
+    {
+        perror("listen");
+        close(server_fd);
+        return 1;
+    }perror("accept");
         close(server_fd);
         return 1;
     }
@@ -124,12 +129,43 @@ int main(void)
     }
 
     /* Keep authenticated variable for the next stages */
-    if (authenticated)
-    {
-        printf("Controller is authenticated.\n");
-    }
+    /* Keep authenticated connection open for next commands */
+if (authenticated)
+{
+    printf("Controller is authenticated.\n");
 
-    close(client_fd);
+    while (1)
+    {
+        memset(buffer, 0, sizeof(buffer));
+
+        int bytes_received = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+
+        if (bytes_received <= 0)
+        {
+            printf("Controller disconnected.\n");
+            break;
+        }
+
+        buffer[bytes_received] = '\0';
+
+        /* Remove newline */
+        buffer[strcspn(buffer, "\r\n")] = '\0';
+
+        printf("Received command: %s\n", buffer);
+
+/* Authentication is already completed */
+char response[BUFFER_SIZE];
+
+snprintf(response, sizeof(response),
+         "OK COMMAND_RECEIVED SID:%s\n", SID);
+
+send(client_fd, response, strlen(response), 0);
+
+printf("Command accepted after authentication.\n");
+    }
+}
+
+close(client_fd);
     close(server_fd);
 
     printf("Agent stopped.\n");
