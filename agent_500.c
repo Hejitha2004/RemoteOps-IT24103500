@@ -260,7 +260,6 @@ if (strcmp(buffer, "LISTPROC") == 0)
         send(client_fd, response, strlen(response), 0);
         continue;
     }
-
     offset += snprintf(response + offset,
                        sizeof(response) - offset,
                        "LISTPROC");
@@ -348,6 +347,164 @@ if (strcmp(buffer, "SYSINFO") == 0)
     continue;
 }
 /* Authentication is already completed */
+if (strncmp(buffer, "EXEC ", 5) == 0)
+{
+    char exec_command[BUFFER_SIZE];
+    char response[BUFFER_SIZE];
+
+    strcpy(exec_command, buffer + 5);
+
+    if (strcmp(exec_command, "DATE") == 0)
+    {
+        FILE *fp = popen("date", "r");
+
+        if (fp == NULL)
+        {
+            snprintf(response, sizeof(response),
+                     "ERR 005 EXEC_FAILED SID:%s\n",
+                     SID);
+            send(client_fd, response, strlen(response), 0);
+            continue;
+        }
+
+        if (fgets(response, sizeof(response), fp) != NULL)
+        {
+            response[strcspn(response, "\r\n")] = '\0';
+
+            char final_response[BUFFER_SIZE];
+
+            snprintf(final_response, sizeof(final_response),
+         "EXEC DATE %.900s SID:%s\n",
+         response, SID);
+            send(client_fd, final_response,
+                 strlen(final_response), 0);
+        }
+
+        pclose(fp);
+        continue;
+    }
+
+    if (strcmp(exec_command, "UPTIME") == 0)
+    {
+        struct sysinfo info;
+
+        if (sysinfo(&info) == 0)
+        {
+            snprintf(response, sizeof(response),
+                     "EXEC UPTIME %lu SID:%s\n",
+                     info.uptime, SID);
+
+            send(client_fd, response,
+                 strlen(response), 0);
+        }
+        else
+        {
+            snprintf(response, sizeof(response),
+                     "ERR 005 EXEC_FAILED SID:%s\n",
+                     SID);
+
+            send(client_fd, response,
+                 strlen(response), 0);
+        }
+
+        continue;
+    }
+
+    if (strcmp(exec_command, "DISKFREE") == 0)
+    {
+        struct statvfs disk_info;
+
+        if (statvfs("/", &disk_info) == 0)
+        {
+            unsigned long long free_bytes =
+                (unsigned long long)disk_info.f_bavail *
+                disk_info.f_frsize;
+
+            unsigned long long free_mb =
+                free_bytes / (1024 * 1024);
+
+            snprintf(response, sizeof(response),
+                     "EXEC DISKFREE %lluMB SID:%s\n",
+                     free_mb, SID);
+
+            send(client_fd, response,
+                 strlen(response), 0);
+        }
+        else
+        {
+            snprintf(response, sizeof(response),
+                     "ERR 005 EXEC_FAILED SID:%s\n",
+                     SID);
+
+            send(client_fd, response,
+                 strlen(response), 0);
+        }
+
+        continue;
+    }
+
+    if (strcmp(exec_command, "HOSTNAME") == 0)
+    {
+        char hostname[256];
+
+        if (gethostname(hostname, sizeof(hostname)) == 0)
+        {
+            hostname[sizeof(hostname) - 1] = '\0';
+
+            snprintf(response, sizeof(response),
+                     "EXEC HOSTNAME %s SID:%s\n",
+                     hostname, SID);
+
+            send(client_fd, response,
+                 strlen(response), 0);
+        }
+        else
+        {
+            snprintf(response, sizeof(response),
+                     "ERR 005 EXEC_FAILED SID:%s\n",
+                     SID);
+
+            send(client_fd, response,
+                 strlen(response), 0);
+        }
+
+        continue;
+    }
+
+    if (strcmp(exec_command, "WHOAMI") == 0)
+    {
+        char username[256];
+
+        if (getlogin_r(username, sizeof(username)) == 0)
+        {
+            snprintf(response, sizeof(response),
+                     "EXEC WHOAMI %s SID:%s\n",
+                     username, SID);
+
+            send(client_fd, response,
+                 strlen(response), 0);
+        }
+        else
+        {
+            snprintf(response, sizeof(response),
+                     "ERR 005 EXEC_FAILED SID:%s\n",
+                     SID);
+
+            send(client_fd, response,
+                 strlen(response), 0);
+        }
+
+        continue;
+    }
+
+    /* Reject every command outside the required whitelist */
+    snprintf(response, sizeof(response),
+             "ERR 006 EXEC_NOT_ALLOWED SID:%s\n",
+             SID);
+
+    send(client_fd, response, strlen(response), 0);
+    continue;
+}
 char response[BUFFER_SIZE];
 
 snprintf(response, sizeof(response),
